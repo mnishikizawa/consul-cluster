@@ -1,0 +1,12 @@
+{
+  "Name": "ohai",
+  "Type": "client",
+  "Rules": "
+    key \"\" {
+      policy = \"read\"
+    }
+    key \"ohai/\" {
+      policy = \"write\"
+    }
+  "
+}

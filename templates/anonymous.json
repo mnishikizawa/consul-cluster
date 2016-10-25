@@ -1,0 +1,17 @@
+{
+  "ID": "anonymous",
+  "Type": "client",
+  "Rules": "{
+    \"service\": {
+      \"\": {
+      \"policy\": \"write\"
+      }
+     },
+    \"key\": {
+      \"_rexec/{{ exec_token }}/\": { \"policy\": \"write\" }
+      },
+    \"event\": {
+      \"_rexec\" : { \"policy\": \"write\" }
+    }
+  }"
+}

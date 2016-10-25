@@ -1,0 +1,174 @@
+---
+- hosts: consul_servers
+  become: yes
+  become_method: sudo
+  become_user: root
+  vars:
+    consul:
+      version: 0.7.0-1
+  vars_files:
+      - vars/{{ location }}.yml
+
+  tasks:
+   - name: Copy consul rpm package
+     copy:
+       src: files/{{ item }}
+       dest: "/tmp/{{ item }}"
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+       - consul-ui-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 6
+
+   - name: Install consul
+     yum:
+       name: /tmp/{{ item }}
+       state: present
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+       - consul-ui-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 6
+
+   - name: Copy consul rpm package
+     copy:
+       src: files/{{ item }}
+       dest: "/tmp/{{ item }}"
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+       - consul-ui-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 7
+
+   - name: Install consul
+     yum:
+       name: /tmp/{{ item }}
+       state: present
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+       - consul-ui-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 7
+
+   - name: Copy /etc/sysconfig/consul
+     template:
+       src: templates/consul-server
+       dest: /etc/sysconfig/consul
+       owner: root
+       mode: 0644
+
+   - name: Copy acl default settings
+     template:
+       src: templates/acl.json
+       dest: /etc/consul/acl.json
+       owner: root
+       group: consul
+       mode: 0640
+
+   - name: reload consul
+     service: name=consul state=reloaded
+
+   - debug: msg="location {{ location }}"
+   - debug: msg="{{ groups['consul_servers'][0] }}"
+   - debug: msg="{{ groups['consul_servers'] | length }}"
+
+- hosts: consul_servers:!consul_servers[0]
+  tasks:
+  - name: join consul cluster
+    command: /usr/bin/consul join "{{ hostvars[groups['consul_servers'][0]].ansible_ssh_host }}"
+    changed_when: no
+
+- hosts: consul_agents
+  become: yes
+  become_method: sudo
+  become_user: root
+  vars:
+    consul:
+      version: 0.7.0-1
+  vars_files:
+    - vars/{{ location }}.yml
+
+  tasks:
+   - name: Copy consul rpm package
+     copy:
+       src: files/{{ item }}
+       dest: "/tmp/{{ item }}"
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 6
+
+   - name: Install consul
+     yum:
+       name: /tmp/{{ item }}
+       state: present
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 6
+
+   - name: Copy consul rpm package
+     copy:
+       src: files/{{ item }}
+       dest: "/tmp/{{ item }}"
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 7
+
+   - name: Install consul
+     yum:
+       name: /tmp/{{ item }}
+       state: present
+     with_items:
+       - consul-{{ consul.version }}.el{{ ansible_distribution_major_version }}.centos.x86_64.rpm
+     when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int == 7
+
+   - name: Copy /etc/sysconfig/consul
+     template:
+       src: templates/consul-agent
+       dest: /etc/sysconfig/consul
+       owner: root
+       group: consul
+       mode: 0640
+
+   - name: reload consul
+     service: name=consul state=reloaded
+
+- hosts: consul_servers[0]
+  become: yes
+  become_method: sudo
+  become_user: root
+  vars_files:
+   - vars/{{ location }}.yml
+
+  tasks:
+   - name: Copy Anonymous token
+     template:
+       src: templates/anonymous.json
+       dest: /root/anonymous.json
+       owner: root
+       group: root
+       mode: 0600
+
+   - name: Copy KV ACL Rule
+     copy:
+       src: files/kv-rule.json
+       dest: /root/kv-rule.json
+       owner: root
+       group: root
+       mode: 0600
+
+   - name: check kv acl rule is aleready exists or not
+     command: bash -c "curl -s 'http://127.0.0.1:8500/v1/acl/list?token={{ master_token }}' | grep ohai"
+     register: ohai_return
+     changed_when: no
+     ignore_errors: yes
+
+   - debug: msg="ohai_return {{ ohai_return.rc }}"
+
+   - name: Create KV ACL Rule
+     command: curl -X PUT 'http://localhost:8500/v1/acl/create?token={{ master_token }}' -d @/root/kv-rule.json
+     register: curl_output
+     when: ohai_return.rc != 0
+
+   - local_action: copy content={{ curl_output.stdout_lines }} dest=/tmp/curl_output
+     when: ohai_return.rc != 0
+
+   - debug: msg="{{ curl_output }}"
+
+   - name: Create anonymous token
+     command: curl -X PUT 'http://localhost:8500/v1/acl/create?token={{ master_token }}' -d @/root/anonymous.json

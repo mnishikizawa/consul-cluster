@@ -1,0 +1,1 @@
+CMD_OPTS="agent -server -datacenter={{ location }} -config-dir=/etc/consul -data-dir=/var/lib/consul -bootstrap-expect=2 -bind={{ ansible_all_ipv4_addresses[1] }} -client 0.0.0.0"

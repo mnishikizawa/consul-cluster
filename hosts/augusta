@@ -1,0 +1,15 @@
+[consul_servers]
+node01 ansible_ssh_host=192.168.33.11 ansible_ssh_port=22 ansible_ssh_user=vagrant ansible_ssh_private_key_file=/Users/mnishikizawa/work/tmp/consul/.vagrant/machines/node01/virtualbox/private_key
+node02 ansible_ssh_host=192.168.33.12 ansible_ssh_port=22 ansible_ssh_user=vagrant ansible_ssh_private_key_file=/Users/mnishikizawa/work/tmp/consul/.vagrant/machines/node02/virtualbox/private_key
+
+[consul_agents]
+node03
+node04
+
+[all:vars]
+location = augusta
+
+
+#ansible-playbook server.yml -i hosts/production -e env=production
+#ansible-playbook server.yml -i hosts/production -e env=production
+
